@@ -71,10 +71,23 @@ class Carver:
         #  first item on the list is the x coordinate of the seam on the top row, the next value on the list is the
         #  x coordinate of the next row and so forth. The minstart_x that was calculated above will be the last number
         #  on the list.
-        seam_values = []
+        height, width = cumulative_energy_image.shape
 
+        seam_values = [0] * height
+        seam_values[0] = minstart_x
 
+        r = height - 2
+        while r >= 0:
+            seam_index = height - r - 1
+            lowest = 99999
+            for i in range(-1, 2):
+                if 0 <= seam_values[seam_index - 1] + i < width:
+                    if cumulative_energy_image[r, seam_values[seam_index - 1] + i] < lowest:
+                        lowest = cumulative_energy_image[r, seam_values[seam_index - 1] + i]
+                        seam_values[seam_index] = seam_values[seam_index - 1] + i
+            r -= 1
 
+        seam_values.reverse()
         return seam_values
 
     def build_seam_image_with_path(self, source_image: np.ndarray,
