@@ -34,18 +34,23 @@ class Carver:
         #    0 0 0 0
         #    0 0 0 0
 
-        cumulative_energy_image = np.zeros(energy_image.shape, dtype=float)
-        cumulative_energy_image[0, :] = energy_image[0, :]
+        cumulative = np.zeros(energy_image.shape, dtype=float)
+        cumulative[0, :] = energy_image[0, :]
 
         # TODO: Fill in cumulative grid, showing the least total energy to reach each pixel from the top edge (row 0)
         #  of the self.edge_cv_image. Each pixel is based on cumulative information from the row above it (row-1) and
         #  the value of the energy for this pixel.
 
+        for r in range(1, cumulative.shape[0]):
+            for c in range(0, cumulative.shape[1]):
+                lowest = 99999
+                for i in range(-1, 2):
+                    if 0 <= c + i < cumulative.shape[1]:
+                        if cumulative[r - 1, c + i] < lowest:
+                            lowest = cumulative[r - 1, c + i]
+                cumulative[r, c] = lowest + energy_image[r, c]
 
-
-
-
-        return cumulative_energy_image
+        return cumulative
 
     def find_seam_locations(self,
                             energy_image: np.ndarray,
