@@ -37,10 +37,6 @@ class Carver:
         cumulative = np.zeros(energy_image.shape, dtype=float)
         cumulative[0, :] = energy_image[0, :]
 
-        # TODO: Fill in cumulative grid, showing the least total energy to reach each pixel from the top edge (row 0)
-        #  of the self.edge_cv_image. Each pixel is based on cumulative information from the row above it (row-1) and
-        #  the value of the energy for this pixel.
-
         for r in range(1, cumulative.shape[0]):
             for c in range(0, cumulative.shape[1]):
                 lowest = 99999
@@ -66,11 +62,6 @@ class Carver:
         # Finds the index of the lowest item in the bottom row of the graphic.
         # I THINK YOU'LL FIND THIS HANDY.
         minstart_x: int = int(np.argmin(cumulative_energy_image[-1, :]))
-
-        # TODO: work back up the cumulative image to find the path. Add the x value to the seam_values list, so that the
-        #  first item on the list is the x coordinate of the seam on the top row, the next value on the list is the
-        #  x coordinate of the next row and so forth. The minstart_x that was calculated above will be the last number
-        #  on the list.
         height, width = cumulative_energy_image.shape
 
         seam_values = [0] * height
@@ -105,9 +96,10 @@ class Carver:
             raise RuntimeError(f"Error - seam list is different height than image. " \
                                  f"{len(seam_values)=}\t{source_image.shape[0]=}")
         seam_image = source_image.copy()
-        # TODO: loop through the ints in seam_values and set the corresponding points in seam_image to become red, via
-        #       a line akin to seam_image[row, col] = (0, 0, 255).
-        #       (The program will work fine without this, but it's nice to see where the seam winds up.)
+
+        num_r = seam_image.shape[0]
+        for r in range(0, num_r):
+            seam_image[r, seam_values[r]] = (0, 0, 255)
 
         return seam_image
 
