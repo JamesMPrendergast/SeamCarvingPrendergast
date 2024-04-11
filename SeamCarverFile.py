@@ -9,7 +9,10 @@ from PIL import Image, ImageTk #Must install "Pillow"
 from numpy import ndarray
 
 from CarverFile import Carver
+from KinkaidDecorators import log_start_stop_method
 
+import logging
+logging.basicConfig(level=logging.INFO)
 
 def convert_cv_to_Tk(img: np.ndarray) -> ImageTk.PhotoImage:
     """
@@ -24,8 +27,8 @@ def convert_cv_to_Tk(img: np.ndarray) -> ImageTk.PhotoImage:
 
 class SeamCarver:
 
-    def __init__(self):
-
+    def __init__(self, use_optimization):
+        self.use_optimization = use_optimization
         self.n_spinner = None
         self.result_cv_image = None
         self.seam_cv_image = None
@@ -40,7 +43,6 @@ class SeamCarver:
         self.root = None
         self.carver = Carver()
         self.build_GUI()
-
 
 
     def build_GUI(self) -> None:
@@ -135,11 +137,11 @@ class SeamCarver:
         self.result_image_panel = self.update_panel(self.result_image_panel, cv_image=self.result_cv_image,
                                                     master=frm_result)
 
-        frm_org.grid(row=0, column=0, rowspan=2)
-        frm_source.grid(row=0, column=1)
-        frm_energy.grid(row=0, column=2)
-        frm_seam.grid(row=1, column=1)
-        frm_result.grid(row=1, column=2)
+        # frm_org.grid(row=0, column=0, rowspan=2)
+        # frm_source.grid(row=0, column=0)
+        # frm_energy.grid(row=0, column=1)
+        frm_seam.grid(row=0, column=0)
+        frm_result.grid(row=0, column=1)
 
     def update_panel(self, panel: Label, cv_image: np.ndarray, master=None) -> Label:
         """
@@ -181,10 +183,9 @@ class SeamCarver:
         The user has just pressed the "Find Seam" button. Calculate the seam location and update the "Seam" panel.
         :return: None
         """
-        cumulative = self.carver.generate_cumulative_energy_grid(self.energy_image)
+        cumulative = self.carver.cumulative_energy_image
 
-        self.seam_values = self.carver.find_seam_locations(self.energy_image,
-                                               cumulative)
+        self.seam_values = self.carver.find_seam_locations()
 
         self.seam_cv_image = self.carver.build_seam_image_with_path(self.source_cv_image,
                                                                self.seam_values)
@@ -220,20 +221,35 @@ class SeamCarver:
         buttons, in sequence.
         :return: None
         """
+
+        if not self.use_optimization:
+            self.carver.generate_cumulative_energy_grid(self.energy_image)
+
         self.do_find_seam()
         self.do_remove_seam()
         self.do_copy_to_source()
 
+        if not self.use_optimization:
+            self.do_copy_to_source()
+        else:
+            self.carver.recalculate_altered_cumulative_energy_grid(self.seam_values)
+            self.source_cv_image = self.result_cv_image.copy()
+
+    @log_start_stop_method
     def do_n_cycles(self):
         """
         the user has just pressed the "do ten cycles" button, equivalent to pressing "do cycle" ten times.
         :return:
         """
         n = int(self.n_spinner.get())
-        print(f"Cycling {n} times.")
+        self.update_source_and_energy()
         for i in range(n):
-            print(i)
+            # safety caution to curb the downside of the rough approximation
+            if self.use_optimization and i % 25 == 0:
+                # self.update_source_and_energy()
+                self.carver.generate_cumulative_energy_grid(self.energy_image)
             self.do_cycle()
+        self.update_source_and_energy()
 
 if __name__ == "__main__":
-    sc = SeamCarver()
+    sc = SeamCarver(use_optimization=True)

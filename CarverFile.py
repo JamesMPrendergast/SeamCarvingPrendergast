@@ -1,22 +1,27 @@
 import numpy as np
 import cv2
 from typing import List, Tuple
+from KinkaidDecorators import log_start_stop_method
 
 class Carver:
+    energy_image: np.ndarray
+    cumulative_energy_image: np.ndarray
 
     def __init__(self):
         pass
-    def calculate_energy(self, source_image) -> np.ndarray:
-        energy_image = cv2.Sobel(source_image.astype(float),
-                                      ddepth=cv2.CV_16S,
-                                      dx=1,
-                                      dy=0,
-                                      ksize=3,
-                                      borderType=cv2.BORDER_REFLECT)
-        energy_image = (np.abs(energy_image)).astype(np.uint8)
-        energy_image = cv2.cvtColor(energy_image, cv2.COLOR_BGR2GRAY)
-        return energy_image
 
+    def calculate_energy(self, source_image) -> np.ndarray:
+        self.energy_image = cv2.Sobel(source_image.astype(float),
+                                    ddepth=cv2.CV_16S,
+                                    dx=1,
+                                    dy=0,
+                                    ksize=3,
+                                    borderType=cv2.BORDER_REFLECT)
+        self.energy_image = (np.abs(self.energy_image)).astype(np.uint8)
+        self.energy_image = cv2.cvtColor(self.energy_image, cv2.COLOR_BGR2GRAY)
+        return self.energy_image
+
+    # @log_start_stop_method
     def generate_cumulative_energy_grid(self, energy_image) -> np.ndarray:
         """
         Based on the information in self.energy_image, constructs the cumulative grid
@@ -34,23 +39,21 @@ class Carver:
         #    0 0 0 0
         #    0 0 0 0
 
-        cumulative = np.zeros(energy_image.shape, dtype=float)
-        cumulative[0, :] = energy_image[0, :]
+        self.cumulative_energy_image = np.zeros(energy_image.shape, dtype=float)
+        self.cumulative_energy_image[0, :] = energy_image[0, :]
 
-        for r in range(1, cumulative.shape[0]):
-            for c in range(0, cumulative.shape[1]):
+        for r in range(1, self.cumulative_energy_image.shape[0]):
+            for c in range(0, self.cumulative_energy_image.shape[1]):
                 lowest = 99999
                 for i in range(-1, 2):
-                    if 0 <= c + i < cumulative.shape[1]:
-                        if cumulative[r - 1, c + i] < lowest:
-                            lowest = cumulative[r - 1, c + i]
-                cumulative[r, c] = lowest + energy_image[r, c]
+                    if 0 <= c + i < self.cumulative_energy_image.shape[1]:
+                        if self.cumulative_energy_image[r - 1, c + i] < lowest:
+                            lowest = self.cumulative_energy_image[r - 1, c + i]
+                self.cumulative_energy_image[r, c] = lowest + energy_image[r, c]
 
-        return cumulative
+        return self.cumulative_energy_image
 
-    def find_seam_locations(self,
-                            energy_image: np.ndarray,
-                            cumulative_energy_image: np.ndarray) -> List[int]:
+    def find_seam_locations(self) -> List[int]:
         """
         Given a filled-in cumulative grid, finds the vertical seam corresponding to the least energy used.
         :param energy_image: the energy image for the source image.
@@ -61,8 +64,8 @@ class Carver:
 
         # Finds the index of the lowest item in the bottom row of the graphic.
         # I THINK YOU'LL FIND THIS HANDY.
-        minstart_x: int = int(np.argmin(cumulative_energy_image[-1, :]))
-        height, width = cumulative_energy_image.shape
+        minstart_x: int = int(np.argmin(self.cumulative_energy_image[-1, :]))
+        height, width = self.cumulative_energy_image.shape
 
         seam_values = [0] * height
         seam_values[0] = minstart_x
@@ -73,8 +76,8 @@ class Carver:
             lowest = 99999
             for i in range(-1, 2):
                 if 0 <= seam_values[seam_index - 1] + i < width:
-                    if cumulative_energy_image[r, seam_values[seam_index - 1] + i] < lowest:
-                        lowest = cumulative_energy_image[r, seam_values[seam_index - 1] + i]
+                    if self.cumulative_energy_image[r, seam_values[seam_index - 1] + i] < lowest:
+                        lowest = self.cumulative_energy_image[r, seam_values[seam_index - 1] + i]
                         seam_values[seam_index] = seam_values[seam_index - 1] + i
             r -= 1
 
@@ -118,9 +121,42 @@ class Carver:
                                     f"{len(seam_values)=}\t{source_image.shape[0]=}")
 
         result_image = source_image.copy()
+        # result_energy = self.energy_image.copy()
+        result_cumulative = self.cumulative_energy_image.copy()
         for r in range(source_image.shape[0]):
             # copy the second "half" of the row to a range one pixel to the left.
             result_image[r, seam_values[r]:-1] = result_image[r, seam_values[r] + 1:]
+            # result_energy[r, seam_values[r]:-1] = result_energy[r, seam_values[r] + 1:]
+            result_cumulative[r, seam_values[r]:-1] = result_cumulative[r, seam_values[r] + 1:]
 
         result_image = result_image[:, :-1] # crop the last column.
+        # self.energy_image = result_energy[:, :-1]
+        self.cumulative_energy_image = result_cumulative[:, :-1]
         return result_image
+
+    # @log_start_stop_method
+    def recalculate_altered_cumulative_energy_grid(self, seam_values):
+        # initial values are redundant as will be reassigned shortly
+        spike_start = seam_values[0]
+        spike_end = seam_values[0] + 1
+
+        for r in range(0, self.energy_image.shape[0]):
+            spike_start = min(spike_start, seam_values[r])
+            spike_end = max(spike_end, min(seam_values[r] + 1, self.energy_image.shape[1]))
+
+            if spike_start > 0 and self.energy_image[r, spike_start - 1] > self.energy_image[r, spike_start]:
+                spike_start -= 1
+            if spike_end < self.energy_image.shape[1] and self.energy_image[r, spike_end] > self.energy_image[r, spike_end - 1]:
+                spike_end += 1
+
+            for c in range(spike_start, spike_end):
+                lowest = 99999
+                for i in range(-1, 2):
+                    if 0 <= c + i < self.cumulative_energy_image.shape[1]:
+                        if self.cumulative_energy_image[r - 1, c + i] < lowest:
+                            lowest = self.cumulative_energy_image[r - 1, c + i]
+                self.cumulative_energy_image[r, c] = lowest + self.energy_image[r, c]
+
+
+
+
