@@ -177,6 +177,7 @@ class SeamCarver:
             self.source_cv_image = cv2.imread(path)
             self.update_source_and_energy()
             self.update_panel(self.original_image_panel, self.source_cv_image)
+            self.carver.generate_cumulative_energy_grid(self.energy_image)
 
     def do_find_seam(self) -> None:
         """
